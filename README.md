@@ -18,7 +18,7 @@
 
 ## 🧪 Portfólio técnico
 
-### [Gelatto — Premium Artisan Gelato](https://github.com/Antunese-17/gelatto) · [Demo ao vivo →](https://voc-um-front-end-engineer-s.vercel.app)
+### [Gelatto — Premium Artisan Gelato](https://github.com/Antunese-17/gelatto) · [Demo ao vivo →](https://gelatto.vercel.app)
 Site promocional de marca fictícia desenvolvido para demonstrar domínio técnico em animações e design system.
 
 **Stack:** Next.js 16 · React 18 · TypeScript (strict) · Tailwind CSS · GSAP + ScrollTrigger · Lenis
@@ -46,5 +46,6 @@ Site promocional de marca fictícia desenvolvido para demonstrar domínio técni
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186)
 [![Email](https://img.shields.io/badge/Email-D14836?style=flat&logo=gmail&logoColor=white)](mailto:eduardooliveraedu745@gmail.com)
+
 
 
