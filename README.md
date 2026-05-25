@@ -9,8 +9,8 @@
 | Projeto | Stack | Link |
 |---|---|---|
 | **Conceito da Navalha** | Next.js · Supabase · MercadoPago | [Ver ao vivo →](https://conceitodanavalha.com.br) |
-| **Vitória Beauty** | Next.js · Supabase · MercadoPago | [Ver ao vivo →](#) |
-| **Costa e Silva** | Next.js · GSAP · Supabase | [Ver ao vivo →](#) |
+| **Vitória Beauty** | Next.js · Supabase · MercadoPago | [Ver ao vivo →](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186) |
+| **Costa e Silva** | Next.js · GSAP · Supabase | [Ver ao vivo →](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186) |
 
 > Sites com agendamento online, pagamento integrado e painel de gestão — entregues e em uso por clientes reais.
 
@@ -44,5 +44,6 @@ Site promocional de marca fictícia desenvolvido para demonstrar domínio técni
 
 ## 📬 Contato
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](#)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186)
 [![Email](https://img.shields.io/badge/Email-D14836?style=flat&logo=gmail&logoColor=white)](mailto:eduardooliveraedu745@gmail.com)
+
