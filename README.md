@@ -10,7 +10,7 @@
 |---|---|---|
 | **Conceito da Navalha** | Next.js · Supabase · MercadoPago | [Ver ao vivo →](https://conceitodanavalha.com.br) |
 | **Vitória Beauty** | Next.js · Supabase · MercadoPago | [Ver ao vivo →](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186) |
-| **Costa e Silva** | Next.js · GSAP · Supabase | [Ver ao vivo →](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186) |
+| **Costa e Silva** | Next.js · Supabase · MercadoPago | [Ver ao vivo →](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186) |
 
 > Sites com agendamento online, pagamento integrado e painel de gestão — entregues e em uso por clientes reais.
 
