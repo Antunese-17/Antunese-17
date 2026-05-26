@@ -1,4 +1,4 @@
-﻿# Olá, sou Eduardo 👋
+# Olá, sou Eduardo 👋
 
 **Frontend Engineer** focado em experiências web de alta fidelidade — animações, performance e acessibilidade.
 
@@ -31,6 +31,19 @@ Site promocional de marca fictícia desenvolvido para demonstrar domínio técni
 
 ---
 
+### [Big Sky Atlas — Boutique Expeditions](https://github.com/Antunese-17/big-sky-atlas) · [Demo ao vivo →](https://big-sky-atlas.vercel.app)
+Site institucional de agência de expedições de luxo em Jackson Hole, Wyoming — design editorial, animações avançadas e design system consistente.
+
+**Stack:** Next.js 15 · TypeScript (strict) · Tailwind CSS · GSAP + ScrollTrigger · Lenis · Framer Motion
+
+**Destaques:**
+- Typing reveal com IntersectionObserver + `steps(N)` injetado dinamicamente via JS
+- Slot-machine scramble em números via `requestAnimationFrame`
+- Design system com 7 tokens CSS + tipografia Gambarino / Satoshi / Khand
+- Build limpo: 16 páginas estáticas geradas, zero dependência de env vars
+
+---
+
 ## 🛠 Stack principal
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
@@ -46,6 +59,3 @@ Site promocional de marca fictícia desenvolvido para demonstrar domínio técni
 
 [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=flat&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/eduardo-oliveira-antunes-6bb804186)
 [![Email](https://img.shields.io/badge/Email-D14836?style=flat&logo=gmail&logoColor=white)](mailto:eduardooliveraedu745@gmail.com)
-
-
-
