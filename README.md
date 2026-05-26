@@ -44,6 +44,23 @@ Site institucional de agência de expedições de luxo em Jackson Hole, Wyoming 
 
 ---
 
+### [LUMA Arquitetura — Site Institucional](https://github.com/Antunese-17/luma-agencia) · [Demo ao vivo →](https://luma-agencia.vercel.app)
+Site institucional de escritório de arquitetura fictício — demonstra domínio de animações scroll-linked avançadas, design editorial e interações sofisticadas em vanilla JS puro.
+
+**Stack:** HTML · CSS (custom properties) · JavaScript (vanilla) · Vercel
+
+**Destaques:**
+- Hero com Ken Burns + parallax scroll-linked e reveal de headline por linha
+- Seção de serviços em split-screen com pinned scroll (500vh) e blur layers animados
+- Processo em scroll horizontal pinned com 5 fases
+- Manifesto com animação character-by-character via IntersectionObserver + CSS stagger
+- Cursor customizado com lag suave via `requestAnimationFrame` (lerp 0.18)
+- Mobile hamburger menu com overlay full-screen animado + fechamento por ESC
+- Efeito magnético nos cards de projeto (±10px via mousemove + lerp)
+- `prefers-reduced-motion` respeitado em todas as animações
+
+---
+
 ## 🛠 Stack principal
 
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)
