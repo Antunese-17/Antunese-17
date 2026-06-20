@@ -1,13 +1,14 @@
 /* =========================================================================
    Store — estado, persistência (localStorage), cálculo de status e queries.
+   Alinhado ao esquema relacional em /db/schema.sql.
    ========================================================================= */
 (function () {
   "use strict";
 
-  const STORAGE_KEY = "gdf_state_v1";
+  const STORAGE_KEY = "gdf_state_v2";
   // Data de referência fixa para coerência da demonstração.
   const TODAY = new Date("2026-06-20T00:00:00");
-  const SOON_DAYS = 30; // janela de "a vencer"
+  const DEFAULT_ALERT_DAYS = 30;
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
@@ -41,14 +42,17 @@
   }
 
   /* ---------------- Status de documento ----------------
-     Retorna: valido | a_vencer | vencido | pendente | nao_aplicavel */
+     valido | a_vencer | vencido | pendente | nao_aplicavel */
   function docStatus(doc) {
     if (!doc) return "pendente";
-    if (doc.status_override === "nao_aplicavel") return "nao_aplicavel";
-    if (!doc.validade) return "pendente";
-    const dleft = daysUntil(doc.validade);
+    if (doc.status === "nao_aplicavel") return "nao_aplicavel";
+    const type = byId("document_types", doc.document_type_id);
+    if (type && type.has_expiration === false) return "valido";
+    if (!doc.expiration_date) return "pendente";
+    const alertDays = type ? (type.alert_days_before || DEFAULT_ALERT_DAYS) : DEFAULT_ALERT_DAYS;
+    const dleft = daysUntil(doc.expiration_date);
     if (dleft < 0) return "vencido";
-    if (dleft <= SOON_DAYS) return "a_vencer";
+    if (dleft <= alertDays) return "a_vencer";
     return "valido";
   }
 
@@ -69,13 +73,12 @@
     bloqueado: { label: "Bloqueado", tone: "red" }
   };
 
-  // Documentos obrigatórios por tipo de entidade (para detectar pendências).
-  const REQUIRED_BY_ENTITY = {
-    carrier: ["dt-1", "dt-2", "dt-3"],      // Licença, ANP/TRR, RNTRC
-    driver: ["dt-5", "dt-6", "dt-7"],        // CNH, MOPP, ASO
-    vehicle: ["dt-9", "dt-10"],              // CRLV, CIPP
-    trailer: ["dt-9", "dt-11"]               // CRLV, CIV
-  };
+  // Tipos de documento obrigatórios por padrão para uma entidade.
+  function requiredTypeIds(entityType) {
+    return state.document_types
+      .filter(function (t) { return t.entity_type === entityType && t.is_required_default; })
+      .map(function (t) { return t.id; });
+  }
 
   function docsFor(entityType, entityId) {
     return state.documents.filter(function (d) {
@@ -83,38 +86,43 @@
     });
   }
 
-  // Avalia o status operacional de uma entidade a partir dos seus documentos.
+  // Status operacional de uma entidade a partir dos seus documentos.
   function entityStatus(entityType, entityId) {
+    // Status administrativo bloqueia/inativa de forma explícita.
+    const ent = byId(collectionFor(entityType), entityId);
+    if (ent && (ent.status === "bloqueado")) return "bloqueado";
+    if (ent && (ent.status === "inativo")) return "pendente";
+
     const docs = docsFor(entityType, entityId);
-    const required = REQUIRED_BY_ENTITY[entityType] || [];
+    const required = requiredTypeIds(entityType);
     let worst = "apto";
     const rank = { apto: 0, pendente: 1, atencao: 2, bloqueado: 3 };
     function bump(s) { if (rank[s] > rank[worst]) worst = s; }
 
-    // Documentos existentes
     docs.forEach(function (d) {
       const st = docStatus(d);
       if (st === "vencido") bump("bloqueado");
       else if (st === "a_vencer") bump("atencao");
       else if (st === "pendente") bump("pendente");
     });
-    // Obrigatórios ausentes => pendente
     required.forEach(function (typeId) {
-      const has = docs.some(function (d) { return d.type_id === typeId; });
+      const has = docs.some(function (d) { return d.document_type_id === typeId; });
       if (!has) bump("pendente");
     });
     return worst;
   }
 
-  // Conta documentos por status para uma entidade.
+  function collectionFor(entityType) {
+    return { carrier: "carriers", driver: "drivers", vehicle: "vehicles", trailer: "trailers", base: "loading_bases" }[entityType];
+  }
+
+  // Conta documentos por status para uma entidade (inclui pendências por ausência).
   function entityDocSummary(entityType, entityId) {
     const docs = docsFor(entityType, entityId);
     const sum = { valido: 0, a_vencer: 0, vencido: 0, pendente: 0, nao_aplicavel: 0, total: docs.length };
     docs.forEach(function (d) { sum[docStatus(d)]++; });
-    // Pendências por ausência
-    const required = REQUIRED_BY_ENTITY[entityType] || [];
-    required.forEach(function (typeId) {
-      const has = docs.some(function (d) { return d.type_id === typeId; });
+    requiredTypeIds(entityType).forEach(function (typeId) {
+      const has = docs.some(function (d) { return d.document_type_id === typeId; });
       if (!has) sum.pendente++;
     });
     return sum;
@@ -129,41 +137,29 @@
   function carrierIds() { return carriers().map(function (c) { return c.id; }); }
 
   function drivers() {
-    const ids = carrierIds();
-    return state.drivers.filter(function (d) { return ids.indexOf(d.carrier_id) >= 0; });
+    return state.drivers.filter(function (d) { return d.company_id === session.companyId; });
   }
   function vehicles() {
-    const ids = carrierIds();
-    return state.vehicles.filter(function (v) { return ids.indexOf(v.carrier_id) >= 0; });
+    return state.vehicles.filter(function (v) { return v.company_id === session.companyId; });
   }
   function trailers() {
-    const ids = carrierIds();
-    return state.trailers.filter(function (t) { return ids.indexOf(t.carrier_id) >= 0; });
+    return state.trailers.filter(function (t) { return t.company_id === session.companyId; });
+  }
+  function loadingBases() {
+    return state.loading_bases.filter(function (b) { return b.company_id === session.companyId; });
   }
 
   function allScopedDocuments() {
-    // Documentos cujas entidades pertencem à empresa atual.
-    const cIds = carrierIds();
-    const dIds = drivers().map(function (x) { return x.id; });
-    const vIds = vehicles().map(function (x) { return x.id; });
-    const tIds = trailers().map(function (x) { return x.id; });
-    return state.documents.filter(function (d) {
-      if (d.entity_type === "carrier") return cIds.indexOf(d.entity_id) >= 0;
-      if (d.entity_type === "driver") return dIds.indexOf(d.entity_id) >= 0;
-      if (d.entity_type === "vehicle") return vIds.indexOf(d.entity_id) >= 0;
-      if (d.entity_type === "trailer") return tIds.indexOf(d.entity_id) >= 0;
-      if (d.entity_type === "base") return true;
-      return false;
-    });
+    return state.documents.filter(function (d) { return d.company_id === session.companyId; });
   }
 
   /* ---------------- Lookups ---------------- */
-  function carrierName(id) { const c = byId("carriers", id); return c ? c.name : "—"; }
+  function carrierName(id) { const c = byId("carriers", id); return c ? (c.trade_name || c.legal_name) : "—"; }
   function docTypeName(id) { const t = byId("document_types", id); return t ? t.name : "—"; }
   function baseName(id) { const b = byId("loading_bases", id); return b ? b.name : "—"; }
-  function driverName(id) { const d = byId("drivers", id); return d ? d.name : "—"; }
+  function driverName(id) { const d = byId("drivers", id); return d ? d.full_name : "—"; }
   function vehicleLabel(id) { const v = byId("vehicles", id); return v ? (v.plate + " · " + v.model) : "—"; }
-  function trailerLabel(id) { const t = byId("trailers", id); return t ? (t.plate + " · " + t.type) : "—"; }
+  function trailerLabel(id) { const t = byId("trailers", id); return t ? (t.plate + " · " + trailerTypeLabel(t.trailer_type)) : "—"; }
 
   function byId(collection, id) {
     return state[collection].find(function (x) { return x.id === id; });
@@ -178,19 +174,22 @@
     return "—";
   }
   const ENTITY_LABELS = { carrier: "Transportadora", driver: "Motorista", vehicle: "Veículo", trailer: "Tanque", base: "Base", operation: "Operação" };
+  const TRAILER_TYPE_LABELS = { tanque: "Tanque", bitrem: "Bitrem", tanque_isotermico: "Tanque isotérmico", implemento: "Implemento", outro: "Outro" };
+  const CARRIER_TYPE_LABELS = { propria: "Própria", terceiro: "Terceiro", agregado: "Agregado" };
+  function trailerTypeLabel(t) { return TRAILER_TYPE_LABELS[t] || t || "Tanque"; }
+  function carrierTypeLabel(t) { return CARRIER_TYPE_LABELS[t] || t || "—"; }
 
-  /* ---------------- Consulta operacional ----------------
-     Avalia conjunto: transportadora + motorista + cavalo + tanque (+ base, produto). */
+  /* ---------------- Consulta operacional ---------------- */
   function evaluateOperation(sel) {
     const checks = [];
     const rank = { apto: 0, pendente: 1, atencao: 2, bloqueado: 3 };
     let worst = "apto";
     function reg(scope, type, id) {
-      if (!id) { return; }
+      if (!id) return;
       const st = entityStatus(type, id);
       const sum = entityDocSummary(type, id);
       let msg;
-      if (st === "bloqueado") msg = sum.vencido + " documento(s) vencido(s).";
+      if (st === "bloqueado") msg = sum.vencido ? (sum.vencido + " documento(s) vencido(s).") : "Entidade bloqueada.";
       else if (st === "atencao") msg = sum.a_vencer + " documento(s) a vencer.";
       else if (st === "pendente") msg = "Documento obrigatório pendente.";
       else msg = "Documentação em dia.";
@@ -202,59 +201,52 @@
     reg("Cavalo mecânico", "vehicle", sel.vehicle_id);
     reg("Tanque / implemento", "trailer", sel.trailer_id);
 
-    // Verificação contra exigências da base (se selecionada)
+    // Exigências da base (se selecionada)
     let baseCheck = null;
-    if (sel.base_id) {
-      const req = state.loading_base_requirements.find(function (r) { return r.base_id === sel.base_id; });
-      if (req) {
-        const missing = baseRequirementGaps(sel, req);
-        let st = "apto";
-        if (missing.blocked.length) st = "bloqueado";
-        else if (missing.attention.length) st = "atencao";
-        baseCheck = { req: req, missing: missing, status: st };
-        if (rank[st] > rank[worst]) worst = st;
-        checks.push({
-          scope: "Exigências da base", status: st, type: "base", id: sel.base_id,
-          message: st === "apto" ? "Exigências atendidas." :
-                   (missing.blocked.length ? missing.blocked.length + " exigência(s) bloqueante(s)." :
-                    missing.attention.length + " ponto(s) de atenção.")
-        });
-      }
+    if (sel.loading_base_id) {
+      const missing = baseRequirementGaps(sel);
+      let st = "apto";
+      if (missing.blocked.length) st = "bloqueado";
+      else if (missing.attention.length) st = "atencao";
+      baseCheck = { missing: missing, status: st };
+      if (rank[st] > rank[worst]) worst = st;
+      checks.push({
+        scope: "Exigências da base", status: st, type: "base", id: sel.loading_base_id,
+        message: st === "apto" ? "Exigências atendidas." :
+                 (missing.blocked.length ? missing.blocked.length + " exigência(s) bloqueante(s)." :
+                  missing.attention.length + " ponto(s) de atenção.")
+      });
     }
 
-    // Mapeia o pior status para o resultado operacional.
     const resultMap = { apto: "liberado", atencao: "liberado_atencao", pendente: "pendente", bloqueado: "bloqueado" };
     return { result: resultMap[worst], worst: worst, checks: checks, baseCheck: baseCheck };
   }
 
-  // Verifica se os documentos exigidos pela base estão presentes/vigentes.
-  function baseRequirementGaps(sel, req) {
+  // Confronta as exigências normalizadas da base com os documentos do conjunto.
+  function baseRequirementGaps(sel) {
     const blocked = [], attention = [];
-    const entityList = [
-      ["carrier", sel.carrier_id], ["driver", sel.driver_id],
-      ["vehicle", sel.vehicle_id], ["trailer", sel.trailer_id]
-    ];
-    req.required_docs.forEach(function (docName) {
-      // Encontra o tipo de documento por nome aproximado.
-      const type = state.document_types.find(function (t) {
-        return t.name.toLowerCase().indexOf(docName.toLowerCase()) >= 0 ||
-               docName.toLowerCase().indexOf(t.name.toLowerCase().split(" ")[0]) >= 0;
+    const reqs = state.loading_base_requirements.filter(function (r) {
+      return r.loading_base_id === sel.loading_base_id && r.is_required;
+    });
+    const entityIdByType = {
+      carrier: sel.carrier_id, driver: sel.driver_id, vehicle: sel.vehicle_id, trailer: sel.trailer_id
+    };
+    reqs.forEach(function (r) {
+      const eid = entityIdByType[r.entity_type];
+      const typeName = docTypeName(r.document_type_id);
+      if (!eid) {
+        if (r.is_blocking) blocked.push(typeName + " (entidade não informada)");
+        return;
+      }
+      const docs = docsFor(r.entity_type, eid).filter(function (d) { return d.document_type_id === r.document_type_id; });
+      let best = null;
+      docs.forEach(function (d) {
+        const st = docStatus(d);
+        if (best === null || statusScore(st) < statusScore(best)) best = st;
       });
-      if (!type) return;
-      let best = null; // melhor status encontrado entre as entidades aplicáveis
-      entityList.forEach(function (pair) {
-        const et = pair[0], eid = pair[1];
-        if (!eid) return;
-        if (type.applies_to.indexOf(et) < 0) return;
-        const docs = docsFor(et, eid).filter(function (d) { return d.type_id === type.id; });
-        docs.forEach(function (d) {
-          const st = docStatus(d);
-          if (best === null || statusScore(st) < statusScore(best)) best = st;
-        });
-      });
-      if (best === null) blocked.push(docName + " (ausente)");
-      else if (best === "vencido") blocked.push(docName + " (vencido)");
-      else if (best === "a_vencer") attention.push(docName + " (a vencer)");
+      if (best === null) { (r.is_blocking ? blocked : attention).push(typeName + " (ausente)"); }
+      else if (best === "vencido") { (r.is_blocking ? blocked : attention).push(typeName + " (vencido)"); }
+      else if (best === "a_vencer") { attention.push(typeName + " (a vencer)"); }
     });
     return { blocked: blocked, attention: attention };
   }
@@ -271,8 +263,8 @@
           doc: d, status: st,
           entityLabel: entityLabel(d.entity_type, d.entity_id),
           entityType: ENTITY_LABELS[d.entity_type],
-          typeName: docTypeName(d.type_id),
-          days: daysUntil(d.validade)
+          typeName: docTypeName(d.document_type_id),
+          days: daysUntil(d.expiration_date)
         });
       }
     });
@@ -284,12 +276,16 @@
   function genId(prefix) { return prefix + "-" + Math.random().toString(36).slice(2, 8); }
 
   function upsert(collection, obj, prefix) {
+    const now = new Date().toISOString();
     if (!obj.id) {
       obj.id = genId(prefix || "x");
+      obj.created_at = now; obj.updated_at = now;
       state[collection].push(obj);
     } else {
+      obj.updated_at = now;
       const i = state[collection].findIndex(function (x) { return x.id === obj.id; });
-      if (i >= 0) state[collection][i] = obj; else state[collection].push(obj);
+      if (i >= 0) { obj.created_at = state[collection][i].created_at || now; state[collection][i] = obj; }
+      else state[collection].push(obj);
     }
     persist();
     return obj;
@@ -300,6 +296,7 @@
   }
   function saveOperation(op) {
     op.id = genId("op");
+    op.created_at = new Date().toISOString();
     state.operations.unshift(op);
     persist();
     return op;
@@ -312,7 +309,7 @@
   /* ---------------- Sessão ---------------- */
   function login(email, companyId) {
     const user = state.users.find(function (u) { return u.email === email; }) ||
-      { id: "u-guest", name: "Usuário Demo", email: email, role: "Operador" };
+      { id: "u-guest", name: "Usuário Demo", email: email, role: "consulta", company_id: companyId };
     session.user = user;
     session.companyId = companyId || user.company_id || state.companies[0].id;
     return session;
@@ -323,21 +320,21 @@
   window.Store = {
     state: function () { return state; },
     session: function () { return session; },
-    TODAY: TODAY, SOON_DAYS: SOON_DAYS,
+    TODAY: TODAY,
     // datas
     fmtDate: fmtDate, daysUntil: daysUntil, parseDate: parseDate,
     // status
     docStatus: docStatus, DOC_STATUS_META: DOC_STATUS_META,
     entityStatus: entityStatus, OP_STATUS_META: OP_STATUS_META,
-    entityDocSummary: entityDocSummary, docsFor: docsFor,
-    REQUIRED_BY_ENTITY: REQUIRED_BY_ENTITY,
+    entityDocSummary: entityDocSummary, docsFor: docsFor, requiredTypeIds: requiredTypeIds,
     // escopo
-    carriers: carriers, drivers: drivers, vehicles: vehicles, trailers: trailers,
+    carriers: carriers, drivers: drivers, vehicles: vehicles, trailers: trailers, loadingBases: loadingBases,
     allScopedDocuments: allScopedDocuments, carrierIds: carrierIds,
     // lookups
     byId: byId, carrierName: carrierName, docTypeName: docTypeName, baseName: baseName,
     driverName: driverName, vehicleLabel: vehicleLabel, trailerLabel: trailerLabel,
     entityLabel: entityLabel, ENTITY_LABELS: ENTITY_LABELS,
+    trailerTypeLabel: trailerTypeLabel, carrierTypeLabel: carrierTypeLabel,
     // consulta operacional
     evaluateOperation: evaluateOperation,
     // alertas

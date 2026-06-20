@@ -58,7 +58,7 @@
         const isVenc = a.status === "vencido";
         h += '<div class="alert-row"><div class="ar-bar ' + (isVenc ? "red" : "amber") + '"></div>' +
           '<div class="alert-main"><div class="am-t">' + esc(a.typeName) + " · " + esc(a.entityLabel) + "</div>" +
-          '<div class="am-s">' + esc(a.entityType) + " · vence em " + S.fmtDate(a.doc.validade) + "</div></div>" +
+          '<div class="am-s">' + esc(a.entityType) + " · vence em " + S.fmtDate(a.doc.expiration_date) + "</div></div>" +
           U.docBadge(a.status) +
           '<span class="muted mono nowrap" style="margin-left:10px;min-width:74px;text-align:right">' +
           (isVenc ? Math.abs(a.days) + " d atrás" : "em " + a.days + " d") + "</span></div>";
@@ -121,15 +121,15 @@
         let rows = S.carriers();
         const stf = val("f-carrier-status");
         rows = rows.filter(function (c) {
-          if (q && (c.name + c.cnpj + c.city).toLowerCase().indexOf(q) < 0) return false;
+          if (q && ((c.trade_name || "") + (c.legal_name || "") + c.cnpj + (c.responsible_name || "")).toLowerCase().indexOf(q) < 0) return false;
           if (stf && S.entityStatus("carrier", c.id) !== stf) return false;
           return true;
         });
         return U.table([
           { label: "Transportadora", render: function (c) {
-            return '<div class="row-main">' + esc(c.name) + '</div><div class="row-sub">' + esc(c.cnpj) + " · " + esc(c.city) + "</div>";
+            return '<div class="row-main">' + esc(c.trade_name || c.legal_name) + '</div><div class="row-sub">' + esc(c.cnpj) + " · " + esc(S.carrierTypeLabel(c.carrier_type)) + "</div>";
           } },
-          { label: "ANTT / RNTRC", render: function (c) { return '<span class="mono">' + esc(c.antt) + "</span>"; } },
+          { label: "Responsável", render: function (c) { return esc(c.responsible_name || "—") + '<div class="row-sub">' + esc(c.phone || "") + "</div>"; } },
           { label: "Documentos", render: function (c) { return docSummaryCell("carrier", c.id); } },
           { label: "Status", render: function (c) { return U.opBadge(S.entityStatus("carrier", c.id)); } },
           { label: "", thClass: "text-right", className: "text-right", render: function (c) {
@@ -149,17 +149,22 @@
     U.openModal({
       title: id ? "Editar transportadora" : "Nova transportadora",
       body: U.buildForm([
-        { name: "name", label: "Razão social", required: true, full: true },
+        { name: "legal_name", label: "Razão social", required: true, full: true },
+        { name: "trade_name", label: "Nome fantasia", full: true },
         { name: "cnpj", label: "CNPJ", placeholder: "00.000.000/0001-00" },
-        { name: "antt", label: "RNTRC / ANTT" },
-        { name: "city", label: "Cidade/UF" },
-        { name: "contact", label: "Contato" }
+        { name: "state_registration", label: "Inscrição estadual" },
+        { name: "responsible_name", label: "Responsável" },
+        { name: "phone", label: "Telefone" },
+        { name: "email", label: "E-mail" },
+        { name: "carrier_type", label: "Tipo", type: "select", options: [{ value: "terceiro", label: "Terceiro" }, { value: "propria", label: "Própria" }, { value: "agregado", label: "Agregado" }] },
+        { name: "status", label: "Situação", type: "select", options: [{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }, { value: "bloqueado", label: "Bloqueado" }] },
+        { name: "notes", label: "Observações", type: "textarea", full: true }
       ], c),
       buttons: [
         { label: "Cancelar", className: "btn-ghost", onClick: U.closeModal },
         { label: "Salvar", className: "btn-primary", onClick: function () {
           const data = U.readForm();
-          if (!data.name) return U.toast("Informe a razão social", "error");
+          if (!data.legal_name) return U.toast("Informe a razão social", "error");
           data.id = c.id; data.company_id = c.company_id || S.currentCompanyId();
           S.upsert("carriers", data, "ca");
           U.closeModal(); U.toast("Transportadora salva", "success"); window.Router.reload();
@@ -172,11 +177,13 @@
     const c = S.byId("carriers", id);
     const docs = S.docsFor("carrier", id);
     let body = '<div class="detail-grid" style="margin-bottom:18px">' +
-      U.detailItem("CNPJ", esc(c.cnpj)) + U.detailItem("RNTRC/ANTT", esc(c.antt)) +
-      U.detailItem("Cidade", esc(c.city)) + U.detailItem("Contato", esc(c.contact)) +
+      U.detailItem("Razão social", esc(c.legal_name)) + U.detailItem("CNPJ", esc(c.cnpj)) +
+      U.detailItem("Inscrição estadual", esc(c.state_registration)) + U.detailItem("Tipo", esc(S.carrierTypeLabel(c.carrier_type))) +
+      U.detailItem("Responsável", esc(c.responsible_name)) + U.detailItem("Telefone", esc(c.phone)) +
+      U.detailItem("E-mail", esc(c.email)) +
       U.detailItem("Status operacional", U.opBadge(S.entityStatus("carrier", id))) + "</div>";
     body += docsMiniTable(docs);
-    U.openModal({ title: c.name, body: body, buttons: [{ label: "Fechar", className: "btn-ghost", onClick: U.closeModal }] });
+    U.openModal({ title: c.trade_name || c.legal_name, body: body, buttons: [{ label: "Fechar", className: "btn-ghost", onClick: U.closeModal }] });
   }
 
   /* ============================================================
@@ -193,14 +200,14 @@
         let rows = S.drivers();
         const cf = val("f-driver-carrier"), stf = val("f-driver-status");
         rows = rows.filter(function (d) {
-          if (q && (d.name + d.cpf + d.cnh).toLowerCase().indexOf(q) < 0) return false;
+          if (q && (d.full_name + d.cpf + d.cnh_number).toLowerCase().indexOf(q) < 0) return false;
           if (cf && d.carrier_id !== cf) return false;
           if (stf && S.entityStatus("driver", d.id) !== stf) return false;
           return true;
         });
         return U.table([
           { label: "Motorista", render: function (d) {
-            return '<div class="row-main">' + esc(d.name) + '</div><div class="row-sub">CPF ' + esc(d.cpf) + " · CNH " + esc(d.cnh_cat) + "</div>";
+            return '<div class="row-main">' + esc(d.full_name) + '</div><div class="row-sub">CPF ' + esc(d.cpf) + " · CNH " + esc(d.cnh_category) + "</div>";
           } },
           { label: "Transportadora", render: function (d) { return esc(S.carrierName(d.carrier_id)); } },
           { label: "Documentos", render: function (d) { return docSummaryCell("driver", d.id); } },
@@ -222,18 +229,27 @@
     U.openModal({
       title: id ? "Editar motorista" : "Novo motorista",
       body: U.buildForm([
-        { name: "name", label: "Nome completo", required: true, full: true },
+        { name: "full_name", label: "Nome completo", required: true, full: true },
         { name: "carrier_id", label: "Transportadora", type: "select", options: carrierOptions(), required: true },
         { name: "cpf", label: "CPF" },
-        { name: "cnh", label: "Nº CNH" },
-        { name: "cnh_cat", label: "Categoria CNH", type: "select", options: ["A", "B", "C", "D", "E"] }
+        { name: "rg", label: "RG" },
+        { name: "phone", label: "Telefone" },
+        { name: "email", label: "E-mail" },
+        { name: "cnh_number", label: "Nº CNH" },
+        { name: "cnh_category", label: "Categoria CNH", type: "select", options: ["A", "B", "C", "D", "E", "AB", "AC", "AD", "AE"] },
+        { name: "cnh_expiration_date", label: "Validade CNH", type: "date" },
+        { name: "has_ear", label: "Possui EAR", type: "checkbox" },
+        { name: "mopp_expiration_date", label: "Validade MOPP", type: "date" },
+        { name: "aso_expiration_date", label: "Validade ASO", type: "date" },
+        { name: "status", label: "Situação", type: "select", options: [{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }, { value: "bloqueado", label: "Bloqueado" }] },
+        { name: "notes", label: "Observações", type: "textarea", full: true }
       ], d),
       buttons: [
         { label: "Cancelar", className: "btn-ghost", onClick: U.closeModal },
         { label: "Salvar", className: "btn-primary", onClick: function () {
           const data = U.readForm();
-          if (!data.name) return U.toast("Informe o nome", "error");
-          data.id = d.id;
+          if (!data.full_name) return U.toast("Informe o nome", "error");
+          data.id = d.id; data.company_id = d.company_id || S.currentCompanyId();
           S.upsert("drivers", data, "dr");
           U.closeModal(); U.toast("Motorista salvo", "success"); window.Router.reload();
         } }
@@ -246,10 +262,15 @@
     const docs = S.docsFor("driver", id);
     let body = '<div class="detail-grid" style="margin-bottom:18px">' +
       U.detailItem("Transportadora", esc(S.carrierName(d.carrier_id))) +
-      U.detailItem("CPF", esc(d.cpf)) + U.detailItem("CNH", esc(d.cnh) + " (" + esc(d.cnh_cat) + ")") +
+      U.detailItem("CPF", esc(d.cpf)) + U.detailItem("RG", esc(d.rg)) +
+      U.detailItem("CNH", esc(d.cnh_number) + " (" + esc(d.cnh_category) + ")") +
+      U.detailItem("Validade CNH", S.fmtDate(d.cnh_expiration_date)) +
+      U.detailItem("EAR", d.has_ear ? "Sim" : "Não") +
+      U.detailItem("Validade MOPP", S.fmtDate(d.mopp_expiration_date)) +
+      U.detailItem("Validade ASO", S.fmtDate(d.aso_expiration_date)) +
       U.detailItem("Status operacional", U.opBadge(S.entityStatus("driver", id))) + "</div>";
     body += docsMiniTable(docs);
-    U.openModal({ title: d.name, body: body, buttons: [{ label: "Fechar", className: "btn-ghost", onClick: U.closeModal }] });
+    U.openModal({ title: d.full_name, body: body, buttons: [{ label: "Fechar", className: "btn-ghost", onClick: U.closeModal }] });
   }
 
   /* ============================================================
@@ -300,14 +321,19 @@
         { name: "brand", label: "Marca" },
         { name: "model", label: "Modelo" },
         { name: "year", label: "Ano", type: "number" },
-        { name: "renavam", label: "RENAVAM" }
+        { name: "renavam", label: "RENAVAM" },
+        { name: "chassis", label: "Chassi" },
+        { name: "vehicle_type", label: "Tipo", type: "select", options: [{ value: "cavalo_mecanico", label: "Cavalo mecânico" }, { value: "truck", label: "Truck" }, { value: "toco", label: "Toco" }, { value: "vanderleia", label: "Vanderléia" }, { value: "outro", label: "Outro" }] },
+        { name: "status", label: "Situação", type: "select", options: [{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }, { value: "manutencao", label: "Manutenção" }, { value: "bloqueado", label: "Bloqueado" }] },
+        { name: "notes", label: "Observações", type: "textarea", full: true }
       ], v),
       buttons: [
         { label: "Cancelar", className: "btn-ghost", onClick: U.closeModal },
         { label: "Salvar", className: "btn-primary", onClick: function () {
           const data = U.readForm();
           if (!data.plate) return U.toast("Informe a placa", "error");
-          data.id = v.id;
+          data.id = v.id; data.company_id = v.company_id || S.currentCompanyId();
+          data.year = Number(data.year) || null;
           S.upsert("vehicles", data, "ve");
           U.closeModal(); U.toast("Veículo salvo", "success"); window.Router.reload();
         } }
@@ -322,6 +348,7 @@
       U.detailItem("Transportadora", esc(S.carrierName(v.carrier_id))) +
       U.detailItem("Marca/Modelo", esc(v.brand) + " " + esc(v.model)) +
       U.detailItem("Ano", esc(v.year)) + U.detailItem("RENAVAM", esc(v.renavam)) +
+      U.detailItem("Chassi", esc(v.chassis)) +
       U.detailItem("Status operacional", U.opBadge(S.entityStatus("vehicle", id))) + "</div>";
     body += docsMiniTable(docs);
     U.openModal({ title: "Cavalo " + v.plate, body: body, buttons: [{ label: "Fechar", className: "btn-ghost", onClick: U.closeModal }] });
@@ -341,14 +368,14 @@
         let rows = S.trailers();
         const cf = val("f-tr-carrier"), stf = val("f-tr-status");
         rows = rows.filter(function (t) {
-          if (q && (t.plate + t.type).toLowerCase().indexOf(q) < 0) return false;
+          if (q && (t.plate + S.trailerTypeLabel(t.trailer_type)).toLowerCase().indexOf(q) < 0) return false;
           if (cf && t.carrier_id !== cf) return false;
           if (stf && S.entityStatus("trailer", t.id) !== stf) return false;
           return true;
         });
         return U.table([
           { label: "Placa", render: function (t) {
-            return '<div class="row-main mono">' + esc(t.plate) + '</div><div class="row-sub">' + esc(t.type) + " · " + (t.capacity / 1000) + ".000 L · " + t.compartments + " comp.</div>";
+            return '<div class="row-main mono">' + esc(t.plate) + '</div><div class="row-sub">' + esc(S.trailerTypeLabel(t.trailer_type)) + " · " + ((t.total_capacity || 0) / 1000) + ".000 L · " + (t.compartments_count || 0) + " comp.</div>";
           } },
           { label: "Transportadora", render: function (t) { return esc(S.carrierName(t.carrier_id)); } },
           { label: "Documentos", render: function (t) { return docSummaryCell("trailer", t.id); } },
@@ -372,17 +399,23 @@
       body: U.buildForm([
         { name: "plate", label: "Placa", required: true },
         { name: "carrier_id", label: "Transportadora", type: "select", options: carrierOptions(), required: true },
-        { name: "type", label: "Tipo", type: "select", options: ["Tanque", "Bitrem", "Tanque isotérmico", "Implemento"] },
-        { name: "capacity", label: "Capacidade (L)", type: "number" },
-        { name: "compartments", label: "Compartimentos", type: "number" },
-        { name: "year", label: "Ano", type: "number" }
-      ], t),
+        { name: "trailer_type", label: "Tipo", type: "select", options: [{ value: "tanque", label: "Tanque" }, { value: "bitrem", label: "Bitrem" }, { value: "tanque_isotermico", label: "Tanque isotérmico" }, { value: "implemento", label: "Implemento" }, { value: "outro", label: "Outro" }] },
+        { name: "total_capacity", label: "Capacidade (L)", type: "number" },
+        { name: "compartments_count", label: "Compartimentos", type: "number" },
+        { name: "renavam", label: "RENAVAM" },
+        { name: "chassis", label: "Chassi" },
+        { name: "allowed_products", label: "Produtos permitidos (vírgula)", full: true, placeholder: "Óleo Diesel S10, Gasolina Comum" },
+        { name: "status", label: "Situação", type: "select", options: [{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }, { value: "manutencao", label: "Manutenção" }, { value: "bloqueado", label: "Bloqueado" }] },
+        { name: "notes", label: "Observações", type: "textarea", full: true }
+      ], Object.assign({}, t, { allowed_products: (t.allowed_products || []).join(", ") })),
       buttons: [
         { label: "Cancelar", className: "btn-ghost", onClick: U.closeModal },
         { label: "Salvar", className: "btn-primary", onClick: function () {
           const data = U.readForm();
           if (!data.plate) return U.toast("Informe a placa", "error");
-          data.id = t.id; data.capacity = Number(data.capacity) || 0; data.compartments = Number(data.compartments) || 0;
+          data.id = t.id; data.company_id = t.company_id || S.currentCompanyId();
+          data.total_capacity = Number(data.total_capacity) || 0; data.compartments_count = Number(data.compartments_count) || 0;
+          data.allowed_products = (data.allowed_products || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
           S.upsert("trailers", data, "tr");
           U.closeModal(); U.toast("Tanque salvo", "success"); window.Router.reload();
         } }
@@ -395,8 +428,10 @@
     const docs = S.docsFor("trailer", id);
     let body = '<div class="detail-grid" style="margin-bottom:18px">' +
       U.detailItem("Transportadora", esc(S.carrierName(t.carrier_id))) +
-      U.detailItem("Tipo", esc(t.type)) + U.detailItem("Capacidade", (t.capacity / 1000) + ".000 L") +
-      U.detailItem("Compartimentos", esc(t.compartments)) +
+      U.detailItem("Tipo", esc(S.trailerTypeLabel(t.trailer_type))) + U.detailItem("Capacidade", ((t.total_capacity || 0) / 1000) + ".000 L") +
+      U.detailItem("Compartimentos", esc(t.compartments_count)) +
+      U.detailItem("RENAVAM", esc(t.renavam)) +
+      U.detailItem("Produtos permitidos", esc((t.allowed_products || []).join(", ") || "—")) +
       U.detailItem("Status operacional", U.opBadge(S.entityStatus("trailer", id))) + "</div>";
     body += docsMiniTable(docs);
     U.openModal({ title: "Tanque " + t.plate, body: body, buttons: [{ label: "Fechar", className: "btn-ghost", onClick: U.closeModal }] });
@@ -421,22 +456,22 @@
       const q = (val("f-doc-q") || "").toLowerCase();
       const ef = val("f-doc-entity"), stf = val("f-doc-status");
       let rows = S.allScopedDocuments().filter(function (d) {
-        const label = (d.number + S.docTypeName(d.type_id) + S.entityLabel(d.entity_type, d.entity_id)).toLowerCase();
+        const label = ((d.file_name || "") + S.docTypeName(d.document_type_id) + S.entityLabel(d.entity_type, d.entity_id)).toLowerCase();
         if (q && label.indexOf(q) < 0) return false;
         if (ef && d.entity_type !== ef) return false;
         if (stf && S.docStatus(d) !== stf) return false;
         return true;
       });
-      rows.sort(function (a, b) { return (S.daysUntil(a.validade) || 9999) - (S.daysUntil(b.validade) || 9999); });
+      rows.sort(function (a, b) { return (S.daysUntil(a.expiration_date) || 9999) - (S.daysUntil(b.expiration_date) || 9999); });
       document.getElementById("doc-table").innerHTML = U.table([
         { label: "Documento", render: function (d) {
-          return '<div class="row-main">' + esc(S.docTypeName(d.type_id)) + '</div><div class="row-sub mono">' + esc(d.number || "—") + "</div>";
+          return '<div class="row-main">' + esc(S.docTypeName(d.document_type_id)) + '</div><div class="row-sub mono">' + esc(d.file_name || "—") + "</div>";
         } },
         { label: "Vínculo", render: function (d) {
           return '<div>' + esc(S.entityLabel(d.entity_type, d.entity_id)) + '</div><div class="row-sub">' + esc(S.ENTITY_LABELS[d.entity_type]) + "</div>";
         } },
-        { label: "Emissão", render: function (d) { return '<span class="mono">' + S.fmtDate(d.emissao) + "</span>"; } },
-        { label: "Validade", render: function (d) { return '<span class="mono">' + S.fmtDate(d.validade) + "</span>"; } },
+        { label: "Emissão", render: function (d) { return '<span class="mono">' + S.fmtDate(d.issue_date) + "</span>"; } },
+        { label: "Validade", render: function (d) { return '<span class="mono">' + S.fmtDate(d.expiration_date) + "</span>"; } },
         { label: "Status", render: function (d) { return U.docBadge(S.docStatus(d)); } },
         { label: "", thClass: "text-right", className: "text-right", render: function (d) {
           return rowActions([
@@ -458,14 +493,14 @@
     const types = S.state().document_types;
 
     function entityOptionsFor(type) {
-      if (type === "carrier") return S.carriers().map(function (x) { return { value: x.id, label: x.name }; });
-      if (type === "driver") return S.drivers().map(function (x) { return { value: x.id, label: x.name }; });
+      if (type === "carrier") return S.carriers().map(function (x) { return { value: x.id, label: x.trade_name || x.legal_name }; });
+      if (type === "driver") return S.drivers().map(function (x) { return { value: x.id, label: x.full_name }; });
       if (type === "vehicle") return S.vehicles().map(function (x) { return { value: x.id, label: x.plate + " · " + x.model }; });
-      if (type === "trailer") return S.trailers().map(function (x) { return { value: x.id, label: x.plate + " · " + x.type }; });
+      if (type === "trailer") return S.trailers().map(function (x) { return { value: x.id, label: x.plate + " · " + S.trailerTypeLabel(x.trailer_type) }; });
       return [];
     }
     function typeOptionsFor(type) {
-      return types.filter(function (t) { return t.applies_to.indexOf(type) >= 0; })
+      return types.filter(function (t) { return t.entity_type === type; })
         .map(function (t) { return { value: t.id, label: t.name }; });
     }
 
@@ -475,11 +510,13 @@
         { name: "entity_type", label: "Tipo de vínculo", type: "select", required: true,
           options: [{ value: "carrier", label: "Transportadora" }, { value: "driver", label: "Motorista" }, { value: "vehicle", label: "Veículo" }, { value: "trailer", label: "Tanque" }] },
         { name: "entity_id", label: "Entidade", type: "select", required: true, options: entityOptionsFor(d.entity_type) },
-        { name: "type_id", label: "Tipo de documento", type: "select", required: true, options: typeOptionsFor(d.entity_type) },
-        { name: "number", label: "Número / identificação" },
-        { name: "emissao", label: "Data de emissão", type: "date" },
-        { name: "validade", label: "Data de validade", type: "date" },
-        { name: "status_override", label: "Marcar como não aplicável", type: "checkbox", value: d.status_override === "nao_aplicavel" }
+        { name: "document_type_id", label: "Tipo de documento", type: "select", required: true, options: typeOptionsFor(d.entity_type) },
+        { name: "file_name", label: "Arquivo / identificação", placeholder: "documento.pdf" },
+        { name: "issue_date", label: "Data de emissão", type: "date" },
+        { name: "expiration_date", label: "Data de validade", type: "date" },
+        { name: "responsible_name", label: "Responsável" },
+        { name: "na", label: "Marcar como não aplicável", type: "checkbox", value: d.status === "nao_aplicavel" },
+        { name: "notes", label: "Observações", type: "textarea", full: true }
       ], d),
       onMount: function () {
         const form = document.getElementById("entity-form");
@@ -487,16 +524,17 @@
         etSel.addEventListener("change", function () {
           const type = etSel.value;
           rebuildSelect(form.elements["entity_id"], entityOptionsFor(type));
-          rebuildSelect(form.elements["type_id"], typeOptionsFor(type));
+          rebuildSelect(form.elements["document_type_id"], typeOptionsFor(type));
         });
       },
       buttons: [
         { label: "Cancelar", className: "btn-ghost", onClick: U.closeModal },
         { label: "Salvar", className: "btn-primary", onClick: function () {
           const data = U.readForm();
-          if (!data.entity_id || !data.type_id) return U.toast("Selecione entidade e tipo", "error");
-          data.id = d.id;
-          data.status_override = data.status_override === true ? "nao_aplicavel" : null;
+          if (!data.entity_id || !data.document_type_id) return U.toast("Selecione entidade e tipo", "error");
+          data.id = d.id; data.company_id = d.company_id || S.currentCompanyId();
+          data.status = data.na === true ? "nao_aplicavel" : null;
+          delete data.na;
           S.upsert("documents", data, "d");
           U.closeModal(); U.toast("Documento salvo", "success"); window.Router.reload();
         } }
@@ -513,8 +551,8 @@
     if (!docs.length) return U.emptyState("Sem documentos", "Nenhum documento cadastrado para este registro.", "📄");
     return '<h4 style="font-size:13px;margin-bottom:8px;color:var(--text-2)">DOCUMENTOS (' + docs.length + ")</h4>" +
       U.table([
-        { label: "Tipo", render: function (d) { return esc(S.docTypeName(d.type_id)); } },
-        { label: "Validade", render: function (d) { return '<span class="mono">' + S.fmtDate(d.validade) + "</span>"; } },
+        { label: "Tipo", render: function (d) { return esc(S.docTypeName(d.document_type_id)); } },
+        { label: "Validade", render: function (d) { return '<span class="mono">' + S.fmtDate(d.expiration_date) + "</span>"; } },
         { label: "Status", render: function (d) { return U.docBadge(S.docStatus(d)); } }
       ], docs);
   }
@@ -552,7 +590,7 @@
         { label: "Entidade", render: function (a) {
           return '<div>' + esc(a.entityLabel) + '</div><div class="row-sub">' + esc(a.entityType) + "</div>";
         } },
-        { label: "Validade", render: function (a) { return '<span class="mono">' + S.fmtDate(a.doc.validade) + "</span>"; } },
+        { label: "Validade", render: function (a) { return '<span class="mono">' + S.fmtDate(a.doc.expiration_date) + "</span>"; } },
         { label: "Prazo", render: function (a) {
           return a.status === "vencido"
             ? '<span class="badge red plain">' + Math.abs(a.days) + " dias atrás</span>"
@@ -576,11 +614,11 @@
     let h = '<div class="page-head"><div><h2>Consulta Operacional</h2><p>Verifique se um conjunto está liberado para carregar.</p></div></div>';
     h += '<div class="card"><div class="card-head"><h3>Montar conjunto</h3></div><div class="card-body">';
     h += '<div class="form-grid">' +
-      fieldSelectFull("c-carrier", "Transportadora *", [{ value: "", label: "Selecione..." }].concat(S.carriers().map(function (c) { return { value: c.id, label: c.name }; }))) +
+      fieldSelectFull("c-carrier", "Transportadora *", [{ value: "", label: "Selecione..." }].concat(S.carriers().map(function (c) { return { value: c.id, label: c.trade_name || c.legal_name }; }))) +
       fieldSelectFull("c-driver", "Motorista *", [{ value: "", label: "Selecione..." }]) +
       fieldSelectFull("c-vehicle", "Cavalo mecânico *", [{ value: "", label: "Selecione..." }]) +
       fieldSelectFull("c-trailer", "Tanque / implemento *", [{ value: "", label: "Selecione..." }]) +
-      fieldSelectFull("c-base", "Base de carregamento (opcional)", [{ value: "", label: "Nenhuma" }].concat(S.state().loading_bases.map(function (b) { return { value: b.id, label: b.name }; }))) +
+      fieldSelectFull("c-base", "Base de carregamento (opcional)", [{ value: "", label: "Nenhuma" }].concat(S.loadingBases().map(function (b) { return { value: b.id, label: b.name }; }))) +
       '<label class="field"><span>Produto (opcional)</span><select name="c-product" id="c-product"><option value="">Nenhum</option><option>Óleo Diesel S10</option><option>Óleo Diesel S500</option><option>Gasolina Comum</option><option>Etanol Hidratado</option><option>Querosene</option></select></label>' +
       '<label class="field"><span>Data da operação</span><input type="date" id="c-date" value="2026-06-20" /></label>' +
       "</div>";
@@ -597,11 +635,11 @@
     carrierSel.onchange = function () {
       const cid = carrierSel.value;
       rebuildSelect(document.getElementById("c-driver"), [{ value: "", label: "Selecione..." }].concat(
-        S.drivers().filter(function (d) { return d.carrier_id === cid; }).map(function (d) { return { value: d.id, label: d.name }; })));
+        S.drivers().filter(function (d) { return d.carrier_id === cid; }).map(function (d) { return { value: d.id, label: d.full_name }; })));
       rebuildSelect(document.getElementById("c-vehicle"), [{ value: "", label: "Selecione..." }].concat(
         S.vehicles().filter(function (v) { return v.carrier_id === cid; }).map(function (v) { return { value: v.id, label: v.plate + " · " + v.model }; })));
       rebuildSelect(document.getElementById("c-trailer"), [{ value: "", label: "Selecione..." }].concat(
-        S.trailers().filter(function (t) { return t.carrier_id === cid; }).map(function (t) { return { value: t.id, label: t.plate + " · " + t.type }; })));
+        S.trailers().filter(function (t) { return t.carrier_id === cid; }).map(function (t) { return { value: t.id, label: t.plate + " · " + S.trailerTypeLabel(t.trailer_type) }; })));
     };
 
     document.getElementById("c-clear").onclick = function () { consulta(); };
@@ -609,7 +647,7 @@
       const sel = {
         carrier_id: val("c-carrier"), driver_id: val("c-driver"),
         vehicle_id: val("c-vehicle"), trailer_id: val("c-trailer"),
-        base_id: val("c-base"), product: val("c-product"), date: val("c-date")
+        loading_base_id: val("c-base"), product: val("c-product"), operation_date: val("c-date")
       };
       if (!sel.carrier_id || !sel.driver_id || !sel.vehicle_id || !sel.trailer_id) {
         return U.toast("Selecione transportadora, motorista, cavalo e tanque", "error");
@@ -651,9 +689,9 @@
       U.detailItem("Motorista", esc(S.driverName(sel.driver_id))) +
       U.detailItem("Cavalo", esc(S.vehicleLabel(sel.vehicle_id))) +
       U.detailItem("Tanque", esc(S.trailerLabel(sel.trailer_id))) +
-      U.detailItem("Base", sel.base_id ? esc(S.baseName(sel.base_id)) : "—") +
+      U.detailItem("Base", sel.loading_base_id ? esc(S.baseName(sel.loading_base_id)) : "—") +
       U.detailItem("Produto", sel.product ? esc(sel.product) : "—") +
-      U.detailItem("Data", S.fmtDate(sel.date)) + "</div>";
+      U.detailItem("Data", S.fmtDate(sel.operation_date)) + "</div>";
 
     if (ev.baseCheck) {
       const bc = ev.baseCheck;
@@ -679,8 +717,9 @@
     document.getElementById("c-result").innerHTML = h;
     document.getElementById("c-result").scrollIntoView({ behavior: "smooth", block: "nearest" });
     document.getElementById("c-save").onclick = function () {
-      const op = JSON.parse(JSON.stringify(sel)); op.result = ev.worst === "apto" ? "liberado" : ev.worst === "atencao" ? "atencao" : ev.worst;
-      op.result = { liberado: "liberado", liberado_atencao: "atencao", pendente: "pendente", bloqueado: "bloqueado" }[ev.result];
+      const op = JSON.parse(JSON.stringify(sel));
+      op.company_id = S.currentCompanyId();
+      op.status = { liberado: "liberado", liberado_atencao: "atencao", pendente: "pendente", bloqueado: "bloqueado" }[ev.result];
       S.saveOperation(op);
       U.toast("Consulta salva no histórico", "success");
       renderConsultaHistory();
@@ -695,10 +734,10 @@
   };
 
   function renderConsultaHistory() {
-    const ops = S.state().operations;
+    const ops = S.state().operations.filter(function (o) { return o.company_id === S.currentCompanyId(); });
     let h = '<div class="card mt-16"><div class="card-head"><h3>Histórico de consultas</h3><span class="sub">' + ops.length + " registro(s)</span></div><div>";
     h += U.table([
-      { label: "Data", render: function (o) { return '<span class="mono">' + S.fmtDate(o.date) + "</span>"; } },
+      { label: "Data", render: function (o) { return '<span class="mono">' + S.fmtDate(o.operation_date) + "</span>"; } },
       { label: "Transportadora", render: function (o) { return esc(S.carrierName(o.carrier_id)); } },
       { label: "Conjunto", render: function (o) {
         return '<div class="row-sub">' + esc(S.driverName(o.driver_id)) + " · " +
@@ -706,10 +745,10 @@
           esc(S.byId("trailers", o.trailer_id) ? S.byId("trailers", o.trailer_id).plate : "—") + "</div>";
       } },
       { label: "Base / Produto", render: function (o) {
-        return '<div>' + esc(o.base_id ? S.baseName(o.base_id) : "—") + '</div><div class="row-sub">' + esc(o.product || "—") + "</div>";
+        return '<div>' + esc(o.loading_base_id ? S.baseName(o.loading_base_id) : "—") + '</div><div class="row-sub">' + esc(o.product || "—") + "</div>";
       } },
       { label: "Resultado", render: function (o) {
-        const m = OP_RESULT_META[o.result] || { tone: "gray", label: o.result };
+        const m = OP_RESULT_META[o.status] || { tone: "gray", label: o.status };
         return U.badge(m.tone, m.label);
       } }
     ], ops, { emptyTitle: "Sem consultas", emptyText: "As consultas salvas aparecerão aqui.", emptyEmoji: "🔎" });
@@ -722,23 +761,28 @@
      10) BASES DE CARREGAMENTO
      ============================================================ */
   function bases() {
-    const list = S.state().loading_bases;
+    const list = S.loadingBases();
     let h = '<div class="page-head"><div><h2>Bases de Carregamento</h2><p>Exigências específicas por base — apoio à liberação operacional.</p></div>' +
       '<div class="page-actions"><button class="btn btn-primary" id="base-add">Nova base</button></div></div>';
     h += '<div class="card-grid">';
     list.forEach(function (b) {
-      const req = S.state().loading_base_requirements.find(function (r) { return r.base_id === b.id; }) || { required_docs: [], notes: "", integration: false, scheduling: false, pre_register: false };
-      h += '<div class="card"><div class="card-head"><div><h3>' + esc(b.name) + '</h3><span class="sub">' + esc(b.operator) + " · " + esc(b.city) + "</span></div>" +
+      const reqs = S.state().loading_base_requirements.filter(function (r) { return r.loading_base_id === b.id; });
+      h += '<div class="card"><div class="card-head"><div><h3>' + esc(b.name) + '</h3><span class="sub">' + esc(b.operator_name) + " · " + esc(b.city) + "/" + esc(b.state) + "</span></div>" +
         '<button class="link-btn" data-base-edit="' + b.id + '">Editar →</button></div><div class="card-body">';
       h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">' +
-        flagChip("Integração", req.integration) + flagChip("Agendamento", req.scheduling) + flagChip("Cadastro prévio", req.pre_register) + "</div>";
-      h += '<div class="dl" style="font-size:11.5px;color:var(--text-2);font-weight:600;margin-bottom:6px">DOCUMENTOS OBRIGATÓRIOS</div>';
-      if (req.required_docs.length) {
+        flagChip("Integração", b.requires_integration) + flagChip("Agendamento", b.requires_scheduling) +
+        flagChip("Cad. motorista", b.requires_driver_registration) + flagChip("Cad. veículo", b.requires_vehicle_registration) +
+        flagChip("Cad. tanque", b.requires_trailer_registration) + "</div>";
+      h += '<div class="dl" style="font-size:11.5px;color:var(--text-2);font-weight:600;margin-bottom:6px">EXIGÊNCIAS DOCUMENTAIS</div>';
+      if (reqs.length) {
         h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">';
-        req.required_docs.forEach(function (d) { h += '<span class="chip">' + esc(d) + "</span>"; });
+        reqs.forEach(function (r) {
+          h += '<span class="chip">' + esc(S.docTypeName(r.document_type_id)) + " · " + esc(S.ENTITY_LABELS[r.entity_type]) +
+            (r.is_blocking ? ' <span class="badge red plain" style="margin-left:4px">bloqueia</span>' : "") + "</span>";
+        });
         h += "</div>";
-      } else { h += '<p class="muted" style="font-size:12.5px;margin-bottom:12px">Nenhum documento específico.</p>'; }
-      if (req.notes) h += '<p class="muted" style="font-size:12.5px;line-height:1.5">' + esc(req.notes) + "</p>";
+      } else { h += '<p class="muted" style="font-size:12.5px;margin-bottom:12px">Nenhuma exigência cadastrada.</p>'; }
+      if (b.notes) h += '<p class="muted" style="font-size:12.5px;line-height:1.5">' + esc(b.notes) + "</p>";
       h += "</div></div>";
     });
     h += "</div>";
@@ -756,33 +800,30 @@
 
   function baseForm(id) {
     const b = id ? S.byId("loading_bases", id) : {};
-    const req = id ? (S.state().loading_base_requirements.find(function (r) { return r.base_id === id; }) || {}) : {};
     U.openModal({
       title: id ? "Editar base" : "Nova base de carregamento",
       body: U.buildForm([
         { name: "name", label: "Nome da base", required: true, full: true },
-        { name: "operator", label: "Operador / distribuidora" },
-        { name: "city", label: "Cidade/UF" },
-        { name: "integration", label: "Exige integração", type: "checkbox", value: !!req.integration },
-        { name: "scheduling", label: "Exige agendamento", type: "checkbox", value: !!req.scheduling },
-        { name: "pre_register", label: "Exige cadastro prévio", type: "checkbox", value: !!req.pre_register },
-        { name: "required_docs", label: "Documentos obrigatórios (separados por vírgula)", type: "textarea", full: true, value: (req.required_docs || []).join(", ") },
-        { name: "notes", label: "Observações", type: "textarea", full: true, value: req.notes || "" }
+        { name: "operator_name", label: "Operador / distribuidora" },
+        { name: "city", label: "Cidade" },
+        { name: "state", label: "UF" },
+        { name: "base_type", label: "Tipo", type: "select", options: [{ value: "primaria", label: "Primária" }, { value: "secundaria", label: "Secundária" }, { value: "terminal", label: "Terminal" }, { value: "outro", label: "Outro" }] },
+        { name: "requires_integration", label: "Exige integração", type: "checkbox" },
+        { name: "requires_scheduling", label: "Exige agendamento", type: "checkbox" },
+        { name: "requires_driver_registration", label: "Exige cadastro de motorista", type: "checkbox" },
+        { name: "requires_vehicle_registration", label: "Exige cadastro de veículo", type: "checkbox" },
+        { name: "requires_trailer_registration", label: "Exige cadastro de tanque", type: "checkbox" },
+        { name: "status", label: "Situação", type: "select", options: [{ value: "ativo", label: "Ativo" }, { value: "inativo", label: "Inativo" }] },
+        { name: "notes", label: "Observações", type: "textarea", full: true }
       ], b),
       buttons: [
         { label: "Cancelar", className: "btn-ghost", onClick: U.closeModal },
         { label: "Salvar", className: "btn-primary", onClick: function () {
           const data = U.readForm();
           if (!data.name) return U.toast("Informe o nome", "error");
-          const base = { id: b.id, name: data.name, operator: data.operator, city: data.city };
-          const saved = S.upsert("loading_bases", base, "b");
-          const reqObj = {
-            id: req.id, base_id: saved.id,
-            integration: data.integration === true, scheduling: data.scheduling === true, pre_register: data.pre_register === true,
-            required_docs: (data.required_docs || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean),
-            notes: data.notes || ""
-          };
-          S.upsert("loading_base_requirements", reqObj, "br");
+          data.id = b.id; data.company_id = b.company_id || S.currentCompanyId();
+          ["requires_integration", "requires_scheduling", "requires_driver_registration", "requires_vehicle_registration", "requires_trailer_registration"].forEach(function (k) { data[k] = data[k] === true; });
+          S.upsert("loading_bases", data, "b");
           U.closeModal(); U.toast("Base salva", "success"); window.Router.reload();
         } }
       ]
@@ -838,7 +879,7 @@
     // Por transportadora
     h += '<div class="card mt-16"><div class="card-head"><h3>Documentos por transportadora</h3></div><div>' +
       U.table([
-        { label: "Transportadora", render: function (r) { return '<div class="row-main">' + esc(r.c.name) + "</div>"; } },
+        { label: "Transportadora", render: function (r) { return '<div class="row-main">' + esc(r.c.trade_name || r.c.legal_name) + "</div>"; } },
         { label: "Total docs", className: "mono", render: function (r) { return r.total; } },
         { label: "A vencer", render: function (r) { return r.soon ? U.badge("amber", r.soon) : '<span class="muted">0</span>'; } },
         { label: "Vencidos", render: function (r) { return r.venc ? U.badge("red", r.venc) : '<span class="muted">0</span>'; } },
@@ -850,12 +891,12 @@
   }
 
   function exportCSV(docs) {
-    const head = ["Tipo", "Numero", "Vinculo", "Entidade", "Emissao", "Validade", "Status"];
+    const head = ["Tipo", "Arquivo", "Vinculo", "Entidade", "Emissao", "Validade", "Status"];
     const lines = [head.join(";")];
     docs.forEach(function (d) {
       lines.push([
-        S.docTypeName(d.type_id), d.number || "", S.ENTITY_LABELS[d.entity_type],
-        S.entityLabel(d.entity_type, d.entity_id), d.emissao || "", d.validade || "",
+        S.docTypeName(d.document_type_id), d.file_name || "", S.ENTITY_LABELS[d.entity_type],
+        S.entityLabel(d.entity_type, d.entity_id), d.issue_date || "", d.expiration_date || "",
         S.DOC_STATUS_META[S.docStatus(d)].label
       ].map(function (x) { return '"' + String(x).replace(/"/g, '""') + '"'; }).join(";"));
     });
@@ -880,8 +921,9 @@
     h += '<div class="card-grid">';
     // Empresa
     h += '<div class="card"><div class="card-head"><h3>Empresa ativa</h3></div><div class="card-body"><div class="detail-grid">' +
-      U.detailItem("Nome", esc(company.name)) + U.detailItem("CNPJ", esc(company.cnpj)) +
-      U.detailItem("Segmento", esc(company.segment)) + U.detailItem("Cidade", esc(company.city)) + "</div>" +
+      U.detailItem("Razão social", esc(company.name)) + U.detailItem("Nome fantasia", esc(company.trade_name)) +
+      U.detailItem("CNPJ", esc(company.cnpj)) + U.detailItem("E-mail", esc(company.email)) +
+      U.detailItem("Telefone", esc(company.phone)) + "</div>" +
       '<p class="muted" style="margin-top:14px;font-size:12.5px">A plataforma é multiempresa: cada empresa enxerga apenas suas transportadoras, motoristas, veículos e tanques.</p></div></div>';
 
     // Usuário
@@ -893,11 +935,10 @@
     // Tipos de documento
     h += '<div class="card mt-16"><div class="card-head"><h3>Tipos de documento</h3><span class="sub">' + types.length + " tipos</span></div><div>" +
       U.table([
-        { label: "Tipo de documento", render: function (t) { return '<div class="row-main">' + esc(t.name) + "</div>"; } },
-        { label: "Aplica-se a", render: function (t) {
-          return t.applies_to.map(function (a) { return '<span class="chip" style="margin-right:4px">' + esc(S.ENTITY_LABELS[a]) + "</span>"; }).join("");
-        } },
-        { label: "Validade padrão", className: "mono", render: function (t) { return t.validity_days + " dias"; } }
+        { label: "Tipo de documento", render: function (t) { return '<div class="row-main">' + esc(t.name) + '</div><div class="row-sub">' + esc(t.description || "") + "</div>"; } },
+        { label: "Aplica-se a", render: function (t) { return '<span class="chip">' + esc(S.ENTITY_LABELS[t.entity_type]) + "</span>"; } },
+        { label: "Obrigatório", render: function (t) { return t.is_required_default ? U.badge("blue", "Sim") : '<span class="muted">Não</span>'; } },
+        { label: "Alerta", className: "mono", render: function (t) { return t.has_expiration ? (t.alert_days_before + " dias antes") : "sem validade"; } }
       ], types) + "</div></div>";
 
     // Zona de dados
@@ -965,7 +1006,7 @@
 
   /* ---------- helpers de filtros ---------- */
   function val(id) { const el = document.getElementById(id); return el ? el.value : ""; }
-  function carrierOptions() { return S.carriers().map(function (c) { return { value: c.id, label: c.name }; }); }
+  function carrierOptions() { return S.carriers().map(function (c) { return { value: c.id, label: c.trade_name || c.legal_name }; }); }
 
   function fieldSelect(id, label, options) {
     let h = '<label class="field"><span>' + esc(label) + '</span><select id="' + id + '">';

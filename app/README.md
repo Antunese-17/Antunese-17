@@ -47,17 +47,22 @@ cd app && python3 -m http.server 8080
 `companies`, `carriers`, `drivers`, `vehicles`, `trailers`, `documents`, `document_types`,
 `loading_bases`, `loading_base_requirements`, `operations`, `operation_checks`, `users`.
 
+O modelo de dados relacional completo (PostgreSQL, multiempresa, com
+relacionamentos, índices, triggers e RLS) está em [`/db`](../db/README.md)
+(`schema.sql` + `seed.sql`). A aplicação demo replica esse modelo em
+`assets/js/data.js` com os mesmos nomes de campos.
+
 ## Regras de status
 
 **Documento** (calculado automaticamente pela validade, referência 20/06/2026):
 
 | Status | Critério |
 |---|---|
-| Válido | validade > 30 dias |
-| A vencer | validade dentro de 30 dias |
+| Válido | validade além da janela de alerta do tipo |
+| A vencer | validade dentro da janela de alerta (`alert_days_before`, padrão 30 dias) |
 | Vencido | validade no passado |
 | Pendente | sem validade ou documento obrigatório ausente |
-| Não aplicável | marcado manualmente |
+| Não aplicável | tipo sem validade ou marcado manualmente |
 
 **Entidade** (status operacional derivado dos documentos):
 `Apto` · `Atenção` (documento a vencer) · `Pendente` (obrigatório ausente) · `Bloqueado` (documento vencido).
