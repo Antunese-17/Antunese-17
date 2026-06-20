@@ -95,7 +95,8 @@ Visual neutro e corporativo, no estilo de um SaaS administrativo genérico:
 - **Menu lateral escuro** (`#1F2937`) com ícones de linha discretos, agrupados por seção.
 - **Conteúdo claro** sobre fundo `#F8FAFC`, cards brancos com bordas suaves.
 - **Pouco uso de cor** — cor reservada a status (verde/amarelo/vermelho) e ações (azul).
-- Tipografia Inter, sem gradientes fortes nem ícones decorativos em excesso.
+- Tipografia **Inter auto-hospedada** (`assets/fonts/`, sem dependência de CDN —
+  funciona 100% offline), sem gradientes fortes nem ícones decorativos em excesso.
 - Botões discretos e consistentes, com alvos de toque ampliados no mobile.
 - Área de **upload destacada** (dropzone) no cadastro de documentos.
 
