@@ -88,7 +88,21 @@ app/
 Os dados são persistidos no `localStorage` do navegador. Em **Configurações** é possível
 restaurar a base mockada original.
 
+## Layout
+
+Visual neutro e corporativo, no estilo de um SaaS administrativo genérico:
+
+- **Menu lateral escuro** (`#1F2937`) com ícones de linha discretos, agrupados por seção.
+- **Conteúdo claro** sobre fundo `#F8FAFC`, cards brancos com bordas suaves.
+- **Pouco uso de cor** — cor reservada a status (verde/amarelo/vermelho) e ações (azul).
+- Tipografia Inter, sem gradientes fortes nem ícones decorativos em excesso.
+- Botões discretos e consistentes, com alvos de toque ampliados no mobile.
+- Área de **upload destacada** (dropzone) no cadastro de documentos.
+
 ## Responsividade
 
-Menu lateral fixo no desktop e menu hambúrguer com overlay no mobile/tablet. Tabelas com
-rolagem horizontal, grids fluidos e cards adaptáveis.
+- **Desktop:** menu lateral fixo e tabelas amplas.
+- **Tablet (≤ 980px):** menu recolhível (hambúrguer + overlay).
+- **Mobile (≤ 760px):** filtros recolhíveis sob o botão “Filtros”.
+- **Celular (≤ 720px):** tabelas se transformam em **cards empilhados** (cada linha
+  vira um card com rótulo + valor), evitando rolagem horizontal.

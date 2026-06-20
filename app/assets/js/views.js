@@ -504,14 +504,23 @@
         .map(function (t) { return { value: t.id, label: t.name }; });
     }
 
+    const uploadIco = '<svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 16v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>';
+    const uploadArea =
+      '<div class="upload-area" id="doc-upload">' +
+        '<div class="up-ico">' + uploadIco + "</div>" +
+        '<div class="up-text"><strong>Enviar documento</strong><span>PDF, JPG ou PNG — arraste ou clique para selecionar</span></div>' +
+        '<input type="file" id="doc-file" accept=".pdf,.jpg,.jpeg,.png" hidden />' +
+      "</div>" +
+      '<div class="up-selected" id="doc-file-label"' + (d.file_name ? "" : ' style="display:none"') + ">✓ " + esc(d.file_name || "") + "</div>";
+
     U.openModal({
       title: id ? "Editar documento" : "Novo documento",
-      body: U.buildForm([
+      body: uploadArea + U.buildForm([
         { name: "entity_type", label: "Tipo de vínculo", type: "select", required: true,
           options: [{ value: "carrier", label: "Transportadora" }, { value: "driver", label: "Motorista" }, { value: "vehicle", label: "Veículo" }, { value: "trailer", label: "Tanque" }] },
         { name: "entity_id", label: "Entidade", type: "select", required: true, options: entityOptionsFor(d.entity_type) },
         { name: "document_type_id", label: "Tipo de documento", type: "select", required: true, options: typeOptionsFor(d.entity_type) },
-        { name: "file_name", label: "Arquivo / identificação", placeholder: "documento.pdf" },
+        { name: "file_name", label: "Nome do arquivo", placeholder: "documento.pdf" },
         { name: "issue_date", label: "Data de emissão", type: "date" },
         { name: "expiration_date", label: "Data de validade", type: "date" },
         { name: "responsible_name", label: "Responsável" },
@@ -525,6 +534,18 @@
           const type = etSel.value;
           rebuildSelect(form.elements["entity_id"], entityOptionsFor(type));
           rebuildSelect(form.elements["document_type_id"], typeOptionsFor(type));
+        });
+        // Área de upload destacada: clique abre o seletor; nome preenche o campo.
+        const area = document.getElementById("doc-upload");
+        const fileInput = document.getElementById("doc-file");
+        const fileLabel = document.getElementById("doc-file-label");
+        area.addEventListener("click", function () { fileInput.click(); });
+        fileInput.addEventListener("change", function () {
+          if (!fileInput.files || !fileInput.files[0]) return;
+          const name = fileInput.files[0].name;
+          form.elements["file_name"].value = name;
+          fileLabel.style.display = "flex";
+          fileLabel.innerHTML = "✓ " + esc(name);
         });
       },
       buttons: [

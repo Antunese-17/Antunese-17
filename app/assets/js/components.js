@@ -50,7 +50,7 @@
       h += "<tr>";
       columns.forEach(function (c) {
         const val = c.render ? c.render(row) : esc(row[c.key]);
-        h += "<td" + (c.className ? ' class="' + c.className + '"' : "") + ">" + val + "</td>";
+        h += '<td data-label="' + esc(c.label || "") + '"' + (c.className ? ' class="' + c.className + '"' : "") + ">" + val + "</td>";
       });
       h += "</tr>";
     });
@@ -58,8 +58,10 @@
     return h;
   }
 
-  function emptyState(title, text, emoji) {
-    return '<div class="empty"><span class="emoji">' + (emoji || "📭") + "</span>" +
+  // Ícone neutro de linha para estados vazios (sem emojis).
+  const EMPTY_SVG = '<svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M5 21V5a2 2 0 0 1 2-2h7l5 5v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2z"/></svg>';
+  function emptyState(title, text) {
+    return '<div class="empty"><div class="empty-ico">' + EMPTY_SVG + "</div>" +
       "<h4>" + esc(title) + "</h4><p>" + esc(text) + "</p></div>";
   }
 
@@ -154,10 +156,27 @@
     setTimeout(function () { el.remove(); }, 3000);
   }
 
+  /* ---------------- Pós-render: filtros recolhíveis no mobile ---------------- */
+  const FILTER_SVG = '<svg viewBox="0 0 24 24"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg>';
+  function afterRender() {
+    const blocks = document.querySelectorAll("#content .filters");
+    Array.prototype.forEach.call(blocks, function (f) {
+      if (f.getAttribute("data-enh")) return;
+      f.setAttribute("data-enh", "1");
+      f.classList.add("collapsed"); // só recolhe visualmente no mobile (via CSS)
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "filter-toggle";
+      btn.innerHTML = FILTER_SVG + "<span>Filtros</span>";
+      btn.addEventListener("click", function () { f.classList.toggle("collapsed"); });
+      f.parentNode.insertBefore(btn, f);
+    });
+  }
+
   window.UI = {
     esc: esc, docBadge: docBadge, opBadge: opBadge, badge: badge,
     statCard: statCard, table: table, emptyState: emptyState, detailItem: detailItem,
     openModal: openModal, closeModal: closeModal, confirm: confirm,
-    buildForm: buildForm, readForm: readForm, toast: toast
+    buildForm: buildForm, readForm: readForm, toast: toast, afterRender: afterRender
   };
 })();
