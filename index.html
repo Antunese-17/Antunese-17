@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Dashboard</title>
+<style>
+  :root {
+    --sidebar: #1e293b;
+    --sidebar-hover: #334155;
+    --accent: #6366f1;
+    --accent-hover: #4f46e5;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --active: #22c55e;
+    --paused: #f59e0b;
+    --done: #3b82f6;
+    --danger: #ef4444;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    width: 260px;
+    background: var(--sidebar);
+    color: #cbd5e1;
+    padding: 28px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    flex-shrink: 0;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .logo {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), #8b5cf6);
+    display: grid; place-items: center; font-size: 20px;
+  }
+  .brand h1 { font-size: 18px; color: #fff; font-weight: 700; }
+  .brand p { font-size: 12px; color: #94a3b8; }
+
+  .side-section h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: #64748b; margin-bottom: 12px;
+  }
+  .stat-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
+    font-size: 14px; background: rgba(255,255,255,.03);
+  }
+  .stat-row .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+  .stat-row .count {
+    background: var(--sidebar-hover); padding: 2px 9px; border-radius: 20px;
+    font-size: 12px; font-weight: 600; color: #e2e8f0;
+  }
+  .dot.active { background: var(--active); }
+  .dot.paused { background: var(--paused); }
+  .dot.done { background: var(--done); }
+
+  .side-footer { margin-top: auto; font-size: 12px; color: #475569; line-height: 1.6; }
+  .side-footer button {
+    width: 100%; margin-top: 10px; background: transparent; color: #94a3b8;
+    border: 1px solid #334155; padding: 8px; border-radius: 8px; cursor: pointer;
+    font-size: 12px; transition: .15s;
+  }
+  .side-footer button:hover { background: var(--sidebar-hover); color: #fff; }
+
+  /* ---------- Main ---------- */
+  .main { flex: 1; padding: 32px 40px; max-width: 1100px; }
+  .main-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+  }
+  .main-header h2 { font-size: 26px; font-weight: 700; }
+  .main-header p { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  .btn {
+    background: var(--accent); color: #fff; border: none; padding: 11px 20px;
+    border-radius: 9px; font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: .15s; display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn:hover { background: var(--accent-hover); }
+  .btn.ghost { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+  .btn.ghost:hover { background: #f8fafc; }
+
+  /* ---------- Toolbar ---------- */
+  .toolbar {
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+    background: var(--card); padding: 14px 18px; border-radius: 12px;
+    box-shadow: var(--shadow); margin-bottom: 24px;
+  }
+  .toolbar .group { display: flex; align-items: center; gap: 8px; }
+  .toolbar label { font-size: 13px; color: var(--muted); font-weight: 500; }
+  select, input[type=text], input[type=date], input[type=number] {
+    font-family: inherit; font-size: 14px; padding: 8px 11px;
+    border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text);
+    outline: none; transition: .15s;
+  }
+  select:focus, input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+  .toolbar .spacer { flex: 1; }
+  .count-pill { font-size: 13px; color: var(--muted); }
+
+  /* ---------- Project cards ---------- */
+  .projects { display: grid; gap: 16px; }
+  .card {
+    background: var(--card); border-radius: 14px; padding: 20px 22px;
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+    transition: .15s; position: relative;
+  }
+  .card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
+  .card.status-active { border-left: 4px solid var(--active); }
+  .card.status-paused { border-left: 4px solid var(--paused); }
+  .card.status-done { border-left: 4px solid var(--done); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+  .card-title { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .card-meta { font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 14px; }
+  .card-meta span { display: inline-flex; align-items: center; gap: 5px; }
+  .deadline.overdue { color: var(--danger); font-weight: 600; }
+
+  .badge {
+    font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    padding: 4px 10px; border-radius: 20px; white-space: nowrap;
+  }
+  .badge.active { background: #dcfce7; color: #15803d; }
+  .badge.paused { background: #fef3c7; color: #b45309; }
+  .badge.done { background: #dbeafe; color: #1d4ed8; }
+
+  .progress-wrap { margin: 16px 0 14px; }
+  .progress-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .progress-head .pct { font-weight: 700; color: var(--text); }
+  .bar { height: 9px; background: #e2e8f0; border-radius: 20px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 20px; transition: width .35s ease; }
+  .bar-fill.active { background: var(--active); }
+  .bar-fill.paused { background: var(--paused); }
+  .bar-fill.done { background: var(--done); }
+
+  .card-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+  .card-actions input[type=range] { flex: 1; min-width: 120px; accent-color: var(--accent); cursor: pointer; }
+  .icon-btn {
+    background: #f1f5f9; border: 1px solid var(--border); color: var(--muted);
+    padding: 7px 12px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    font-weight: 500; transition: .15s;
+  }
+  .icon-btn:hover { background: #e2e8f0; color: var(--text); }
+  .icon-btn.del:hover { background: #fee2e2; color: var(--danger); border-color: #fecaca; }
+  .card-actions select { padding: 7px 10px; font-size: 13px; }
+
+  .empty {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+    background: var(--card); border-radius: 14px; border: 2px dashed var(--border);
+  }
+  .empty h3 { color: var(--text); margin-bottom: 6px; }
+
+  /* ---------- Modal ---------- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.5);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: var(--card); border-radius: 16px; padding: 28px; width: 100%; max-width: 460px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25); animation: pop .2s ease;
+  }
+  @keyframes pop { from { transform: scale(.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal h3 { font-size: 20px; margin-bottom: 4px; }
+  .modal .sub { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .field { margin-bottom: 15px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .field input, .field select { width: 100%; }
+  .field .range-row { display: flex; align-items: center; gap: 12px; }
+  .field .range-row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .field .range-row .val { font-weight: 700; width: 46px; text-align: right; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+  .err { color: var(--danger); font-size: 12px; margin-top: 5px; display: none; }
+
+  @media (max-width: 720px) {
+    body { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 16px; }
+    .side-section, .side-footer { display: none; }
+    .main { padding: 24px 18px; }
+  }
+</style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">📊</div>
+      <div>
+        <h1>Projectly</h1>
+        <p>Project Dashboard</p>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <h3>Overview</h3>
+      <div class="stat-row"><span><span class="dot active"></span>Active</span><span class="count" id="stat-active">0</span></div>
+      <div class="stat-row"><span><span class="dot paused"></span>Paused</span><span class="count" id="stat-paused">0</span></div>
+      <div class="stat-row"><span><span class="dot done"></span>Done</span><span class="count" id="stat-done">0</span></div>
+    </div>
+
+    <div class="side-section">
+      <h3>Average Progress</h3>
+      <div class="bar" style="background:#334155">
+        <div class="bar-fill active" id="avg-bar" style="width:0%"></div>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;margin-top:8px"><span id="avg-pct">0</span>% across all projects</p>
+    </div>
+
+    <div class="side-footer">
+      Data saved locally in your browser.
+      <button id="reset-btn">↺ Reset sample data</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="main-header">
+      <div>
+        <h2>Projects</h2>
+        <p>Manage and track all your projects in one place</p>
+      </div>
+      <button class="btn" id="add-btn">＋ New Project</button>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="group">
+        <label for="filter">Status</label>
+        <select id="filter">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+      <div class="group">
+        <label for="sort">Sort by</label>
+        <select id="sort">
+          <option value="deadline">Deadline (soonest)</option>
+          <option value="deadline-desc">Deadline (latest)</option>
+          <option value="progress-desc">Progress (high→low)</option>
+          <option value="progress">Progress (low→high)</option>
+          <option value="name">Name (A–Z)</option>
+        </select>
+      </div>
+      <div class="spacer"></div>
+      <span class="count-pill" id="count-pill">0 projects</span>
+    </div>
+
+    <!-- Project list -->
+    <div class="projects" id="projects"></div>
+  </main>
+
+  <!-- Modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h3 id="modal-title">New Project</h3>
+      <p class="sub" id="modal-sub">Fill in the details below</p>
+
+      <div class="field">
+        <label for="f-name">Project name</label>
+        <input type="text" id="f-name" placeholder="e.g. Website Redesign" autocomplete="off">
+        <div class="err" id="err-name">Please enter a project name.</div>
+      </div>
+      <div class="field">
+        <label for="f-client">Client</label>
+        <input type="text" id="f-client" placeholder="e.g. Acme Corp" autocomplete="off">
+        <div class="err" id="err-client">Please enter a client.</div>
+      </div>
+      <div class="field">
+        <label for="f-deadline">Deadline</label>
+        <input type="date" id="f-deadline">
+        <div class="err" id="err-deadline">Please choose a deadline.</div>
+      </div>
+      <div class="field">
+        <label for="f-status">Status</label>
+        <select id="f-status">
+          <option value="active">Active</option>
+          <option value="paused">Paused</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-progress">Progress</label>
+        <div class="range-row">
+          <input type="range" id="f-progress" min="0" max="100" value="0">
+          <span class="val" id="f-progress-val">0%</span>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn ghost" id="cancel-btn">Cancel</button>
+        <button class="btn" id="save-btn">Save Project</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  "use strict";
+  var STORAGE_KEY = "projectly.projects.v1";
+
+  var SAMPLES = [
+    { id: 1, name: "Website Redesign",        client: "Acme Corp",        deadline: "2026-07-15", status: "active", progress: 65 },
+    { id: 2, name: "Mobile App Launch",       client: "Nimbus Health",    deadline: "2026-08-30", status: "active", progress: 40 },
+    { id: 3, name: "Brand Identity Refresh",  client: "Lumen Studios",    deadline: "2026-06-20", status: "paused", progress: 25 },
+    { id: 4, name: "Q2 Marketing Campaign",   client: "Vertex Retail",    deadline: "2026-05-31", status: "done",   progress: 100 },
+    { id: 5, name: "Internal CRM Migration",  client: "Orbit Logistics",  deadline: "2026-09-12", status: "active", progress: 15 }
+  ];
+
+  var projects = load();
+  var editingId = null;
+
+  // ---------- Elements ----------
+  var $ = function (id) { return document.getElementById(id); };
+  var listEl = $("projects");
+  var filterEl = $("filter");
+  var sortEl = $("sort");
+  var overlay = $("overlay");
+
+  // ---------- Storage ----------
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var data = JSON.parse(raw);
+        if (Array.isArray(data)) return data;
+      }
+    } catch (e) { /* ignore */ }
+    return SAMPLES.map(function (p) { return Object.assign({}, p); });
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(projects)); } catch (e) {}
+  }
+  function nextId() {
+    return projects.reduce(function (m, p) { return Math.max(m, p.id); }, 0) + 1;
+  }
+
+  // ---------- Helpers ----------
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtDate(d) {
+    var dt = new Date(d + "T00:00:00");
+    if (isNaN(dt)) return d;
+    return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+  function isOverdue(p) {
+    if (p.status === "done") return false;
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    return new Date(p.deadline + "T00:00:00") < today;
+  }
+  function statusLabel(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // ---------- Render ----------
+  function render() {
+    var filter = filterEl.value;
+    var sort = sortEl.value;
+
+    var view = projects.filter(function (p) { return filter === "all" || p.status === filter; });
+
+    view.sort(function (a, b) {
+      switch (sort) {
+        case "deadline":      return a.deadline.localeCompare(b.deadline);
+        case "deadline-desc": return b.deadline.localeCompare(a.deadline);
+        case "progress":      return a.progress - b.progress;
+        case "progress-desc": return b.progress - a.progress;
+        case "name":          return a.name.localeCompare(b.name);
+        default:              return 0;
+      }
+    });
+
+    listEl.innerHTML = "";
+
+    if (view.length === 0) {
+      listEl.innerHTML =
+        '<div class="empty"><h3>No projects here</h3>' +
+        '<p>' + (projects.length ? "Try a different filter, or add a new project." : "Add your first project to get started.") + '</p></div>';
+    } else {
+      view.forEach(function (p) { listEl.appendChild(card(p)); });
+    }
+
+    updateStats();
+    $("count-pill").textContent = view.length + " project" + (view.length === 1 ? "" : "s");
+  }
+
+  function card(p) {
+    var el = document.createElement("div");
+    el.className = "card status-" + p.status;
+    el.dataset.id = p.id;
+
+    var overdue = isOverdue(p);
+    el.innerHTML =
+      '<div class="card-top">' +
+        '<div>' +
+          '<div class="card-title">' + esc(p.name) + '</div>' +
+          '<div class="card-meta">' +
+            '<span>👤 ' + esc(p.client) + '</span>' +
+            '<span class="deadline' + (overdue ? " overdue" : "") + '">📅 ' + fmtDate(p.deadline) +
+              (overdue ? " · overdue" : "") + '</span>' +
+          '</div>' +
+        '</div>' +
+        '<span class="badge ' + p.status + '">' + statusLabel(p.status) + '</span>' +
+      '</div>' +
+
+      '<div class="progress-wrap">' +
+        '<div class="progress-head"><span>Progress</span><span class="pct">' + p.progress + '%</span></div>' +
+        '<div class="bar"><div class="bar-fill ' + p.status + '" style="width:' + p.progress + '%"></div></div>' +
+      '</div>' +
+
+      '<div class="card-actions">' +
+        '<input type="range" min="0" max="100" value="' + p.progress + '" title="Update progress" data-act="progress">' +
+        '<select data-act="status" title="Change status">' +
+          '<option value="active"' + (p.status === "active" ? " selected" : "") + '>Active</option>' +
+          '<option value="paused"' + (p.status === "paused" ? " selected" : "") + '>Paused</option>' +
+          '<option value="done"' + (p.status === "done" ? " selected" : "") + '>Done</option>' +
+        '</select>' +
+        '<button class="icon-btn" data-act="edit">✎ Edit</button>' +
+        '<button class="icon-btn del" data-act="delete">🗑 Delete</button>' +
+      '</div>';
+
+    return el;
+  }
+
+  function updateStats() {
+    var counts = { active: 0, paused: 0, done: 0 };
+    projects.forEach(function (p) { counts[p.status]++; });
+    $("stat-active").textContent = counts.active;
+    $("stat-paused").textContent = counts.paused;
+    $("stat-done").textContent = counts.done;
+
+    var avg = projects.length
+      ? Math.round(projects.reduce(function (s, p) { return s + p.progress; }, 0) / projects.length)
+      : 0;
+    $("avg-bar").style.width = avg + "%";
+    $("avg-pct").textContent = avg;
+  }
+
+  // ---------- Card interactions (delegated) ----------
+  listEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-act]");
+    if (!btn || (btn.dataset.act !== "edit" && btn.dataset.act !== "delete")) return;
+    var id = Number(btn.closest(".card").dataset.id);
+    if (btn.dataset.act === "edit") openModal(id);
+    else if (btn.dataset.act === "delete") deleteProject(id);
+  });
+
+  listEl.addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.dataset.act !== "progress") return;
+    var card = el.closest(".card");
+    var id = Number(card.dataset.id);
+    var val = Number(el.value);
+    var p = find(id);
+    if (!p) return;
+    p.progress = val;
+    card.querySelector(".pct").textContent = val + "%";
+    card.querySelector(".bar-fill").style.width = val + "%";
+    save();
+    updateStats();
+  });
+
+  listEl.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.dataset.act === "status") {
+      var id = Number(el.closest(".card").dataset.id);
+      var p = find(id);
+      if (!p) return;
+      p.status = el.value;
+      save();
+      render();
+    }
+  });
+
+  function find(id) {
+    for (var i = 0; i < projects.length; i++) if (projects[i].id === id) return projects[i];
+    return null;
+  }
+
+  function deleteProject(id) {
+    var p = find(id);
+    if (!p) return;
+    if (!confirm('Delete "' + p.name + '"? This cannot be undone.')) return;
+    projects = projects.filter(function (x) { return x.id !== id; });
+    save();
+    render();
+  }
+
+  // ---------- Modal ----------
+  function openModal(id) {
+    editingId = id || null;
+    clearErrors();
+    if (editingId) {
+      var p = find(editingId);
+      $("modal-title").textContent = "Edit Project";
+      $("modal-sub").textContent = "Update the details below";
+      $("f-name").value = p.name;
+      $("f-client").value = p.client;
+      $("f-deadline").value = p.deadline;
+      $("f-status").value = p.status;
+      $("f-progress").value = p.progress;
+    } else {
+      $("modal-title").textContent = "New Project";
+      $("modal-sub").textContent = "Fill in the details below";
+      $("f-name").value = "";
+      $("f-client").value = "";
+      $("f-deadline").value = "";
+      $("f-status").value = "active";
+      $("f-progress").value = 0;
+    }
+    $("f-progress-val").textContent = $("f-progress").value + "%";
+    overlay.classList.add("show");
+    $("f-name").focus();
+  }
+
+  function closeModal() {
+    overlay.classList.remove("show");
+    editingId = null;
+  }
+
+  function clearErrors() {
+    ["err-name", "err-client", "err-deadline"].forEach(function (id) { $(id).style.display = "none"; });
+  }
+
+  function saveModal() {
+    clearErrors();
+    var name = $("f-name").value.trim();
+    var client = $("f-client").value.trim();
+    var deadline = $("f-deadline").value;
+    var ok = true;
+    if (!name) { $("err-name").style.display = "block"; ok = false; }
+    if (!client) { $("err-client").style.display = "block"; ok = false; }
+    if (!deadline) { $("err-deadline").style.display = "block"; ok = false; }
+    if (!ok) return;
+
+    var data = {
+      name: name,
+      client: client,
+      deadline: deadline,
+      status: $("f-status").value,
+      progress: Number($("f-progress").value)
+    };
+
+    if (editingId) {
+      Object.assign(find(editingId), data);
+    } else {
+      data.id = nextId();
+      projects.push(data);
+    }
+    save();
+    closeModal();
+    render();
+  }
+
+  // ---------- Wire up controls ----------
+  $("add-btn").addEventListener("click", function () { openModal(null); });
+  $("cancel-btn").addEventListener("click", closeModal);
+  $("save-btn").addEventListener("click", saveModal);
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) closeModal(); });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && overlay.classList.contains("show")) closeModal();
+  });
+  $("f-progress").addEventListener("input", function () {
+    $("f-progress-val").textContent = this.value + "%";
+  });
+  filterEl.addEventListener("change", render);
+  sortEl.addEventListener("change", render);
+  $("reset-btn").addEventListener("click", function () {
+    if (!confirm("Reset to the original 5 sample projects? Your current data will be replaced.")) return;
+    projects = SAMPLES.map(function (p) { return Object.assign({}, p); });
+    save();
+    render();
+  });
+
+  // ---------- Init ----------
+  render();
+})();
+</script>
+</body>
+</html>
